@@ -1,0 +1,172 @@
+---
+title: "Data Analysis"
+author: "Katy Miles"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(lme4)
+library(lmerTest)
+library(emmeans)
+library(grid)
+library(gridExtra)
+library(ggfortify)
+library(broom.mixed)
+library(knitr)
+```
+
+## Importing Data
+```{r}
+# Read in data without extra label row
+data = read.csv("C:/Users/16189/Desktop/STAT 556/Data_v2.csv")
+```
+
+## Cleaning Data
+```{r}
+# Create a treatment column and change Salt, Protein, and Fat and Moisture, %NPN/TN, and %NCN/TN columns into decimals (instead of percentages). This way all of the percentage columns will be in the same units, i.e. raw decimals instead of percentages
+data = data %>%
+  mutate(Treatment = paste0(Culture.Variable, " ", 
+                            Pre.acidification),
+         `Salt.` = `Salt.`/100,
+         `Protein.` = `Protein.` / 100,
+         `Moisture.` = `Moisture.` / 100,
+         `Fat.` = `Fat.` / 100,
+         X.NPN.TN = X.NPN.TN / 100,
+         X.NCN.TN = X.NCN.TN / 100)
+
+```
+
+## Summary Statistics
+```{r}
+# Get mean, sd, min, and max for all response variables
+
+treatment_mean = t(data %>%
+  group_by(Treatment) %>%
+  summarise(across(colnames(data[,10:44]), mean)))[-1,]
+
+colnames(treatment_mean) = c("BS No Mean", "DVI No Mean", "DVI Yes Mean")
+
+treatment_sd = t(data %>%
+  group_by(Treatment) %>%
+  summarise(across(colnames(data[,10:44]), sd)))[-1,]
+
+colnames(treatment_sd) = c("BS No SD", "DVI No SD", "DVI Yes SD")
+
+treatment_min = t(data %>%
+  group_by(Treatment) %>%
+  summarise(across(colnames(data[,10:44]), min)))[-1,]
+
+colnames(treatment_min) = c("BS No Min", "DVI No Min", "DVI Yes Min")
+
+treatment_max = t(data %>%
+  group_by(Treatment) %>%
+  summarise(across(colnames(data[,10:44]), max)))[-1,] 
+
+colnames(treatment_max) = c("BS No Max", "DVI No Max", "DVI Yes Max")
+
+summary_df = cbind(treatment_mean, treatment_sd,
+                   treatment_min, treatment_max)
+
+write.csv(summary_df, "C:/Users/16189/Desktop/STAT 556/summary_stats.csv", row.names = TRUE)
+```
+
+## Plotting
+```{r}
+# Create a function with the response as an input variables for plotting
+summary_plot = function(y) {
+  ggplot(data) + 
+  geom_point(aes(x = Treatment, 
+                 y = get(y)),
+                 alpha = 0.7) +
+  ylab(y) +
+  xlab("") + 
+  theme_classic() 
+}
+
+# Create plots for all response variables
+response = colnames(data[,10:53])
+plots = map(response, summary_plot)
+
+# Create overall x label for grid plotting
+x_label <- textGrob("Treatment")
+
+#Create pdf of plot grids
+pdf("cheese_plots.pdf")
+for (i in seq(1, 40, 9)) {
+  j = i + 8
+  if (j %% 44 == 1) {
+    j = 44
+  }
+  # Create grids for each group (3 total groups)
+  plot_grid = cowplot::plot_grid(plotlist = plots[i:j])
+  grid.arrange(arrangeGrob(plot_grid, bottom = x_label))
+}
+dev.off()
+
+# PCA plots
+pca_res <- prcomp(data[,10:53], scale. = TRUE)
+
+autoplot(pca_res, data, colour = "Treatment") + 
+  theme_classic()
+
+# Checking correlation of responses
+cor(data[,10:53])
+
+corrplot::corrplot(cor(data[,10:53]), tl.cex = .55, 
+                   tl.col = "black")
+```
+
+
+## Analysis
+
+```{r}
+# Create a function for fitting a mixed effect model
+# with response variables as input for automation
+fit_model = function(response) {
+  model = lmer(get(response) ~ Treatment + (1|Milk.Protein),
+               data = data)
+  return(model)
+  
+}
+
+# Create a list of response variables to map to (Initial Cheese pH is first response)
+response_vars = colnames(data[, 10:53])
+
+# Fit models for all response variables
+model_list = map(response_vars, fit_model)
+names(model_list) = response_vars
+summary_list = map(model_list, tidy)
+
+# Get a list of p-values
+plist = as.data.frame(t(unlist(summary_list))) %>%
+  select(matches("p.value")) %>%
+  t() %>%
+  na.omit()
+
+# Adjust p-values with FDR
+plist_adjusted = p.adjust(sort(plist[,1]), method = "fdr")
+
+# Create a df to compare adjusted and unadjusted pvals
+pval_df = merge(as.data.frame(plist), as.data.frame(plist_adjusted),
+           by="row.names") %>%
+  mutate("Sig" = ifelse(plist_adjusted <= 0.05, "Yes", "No"))
+
+colnames(pval_df) = c("response", "pval", "pval_adj", "sig")
+
+# Get pairwise comparisons for all models
+emmeans_list = map(model_list, emmeans, ~Treatment)
+pair_list = map(emmeans_list, contrast, "pairwise")
+
+# Plot emmeans output
+emmeans_plots = map(emmeans_list, pwpp)
+
+# MANCOVA
+anova_list = aov(data$Coagulation.time..minutes. ~ factor(data$Treatment) + factor(data$Milk.Protein))
+```
+
+When looking at the FDR adjusted p-values, we see that there are two significant coefficients, one for the difference between the mean coagulation time of DVI No and Bulk and one for the mean Leucine of DVI Yes and Bulk. When looking at the contrasts, we also see that there is a significant difference between the mean coagulation time of DVI No and DVI Yes. No other significant differences were found. 
+
+
