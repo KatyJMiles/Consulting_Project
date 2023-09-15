@@ -21,7 +21,7 @@ library(knitr)
 ## Importing Data
 ```{r}
 # Read in data without extra label row
-data = read.csv("C:/Users/16189/Desktop/STAT 556/Data_v2.csv")
+data = read.csv("../Input/Data_v2.csv")
 ```
 
 ## Cleaning Data
@@ -70,7 +70,7 @@ colnames(treatment_max) = c("BS No Max", "DVI No Max", "DVI Yes Max")
 summary_df = cbind(treatment_mean, treatment_sd,
                    treatment_min, treatment_max)
 
-write.csv(summary_df, "C:/Users/16189/Desktop/STAT 556/summary_stats.csv", row.names = TRUE)
+write.csv(summary_df, "../Output/summary_stats.csv", row.names = TRUE)
 ```
 
 ## Plotting
