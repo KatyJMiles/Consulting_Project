@@ -19,61 +19,36 @@ library(knitr)
 ```
 
 ## Importing Data
+
 ```{r}
 # Read in data without extra label row
-data = read.csv("../Input/Data_v2.csv")
+data = read.csv("../Input/longData.csv")
 ```
 
 ## Cleaning Data
+
 ```{r}
-# Create a treatment column and change Salt, Protein, and Fat and Moisture, %NPN/TN, and %NCN/TN columns into decimals (instead of percentages). This way all of the percentage columns will be in the same units, i.e. raw decimals instead of percentages
-data = data %>%
-  mutate(Treatment = paste0(Culture.Variable, " ", 
-                            Pre.acidification),
-         `Salt.` = `Salt.`/100,
-         `Protein.` = `Protein.` / 100,
-         `Moisture.` = `Moisture.` / 100,
-         `Fat.` = `Fat.` / 100,
-         X.NPN.TN = X.NPN.TN / 100,
-         X.NCN.TN = X.NCN.TN / 100)
+data = data %>% mutate(Treatment = paste0(`Culture.Variable`, " ", 
+                           `Pre.acidification`))
 
 ```
 
 ## Summary Statistics
+
 ```{r}
 # Get mean, sd, min, and max for all response variables
-
-treatment_mean = t(data %>%
-  group_by(Treatment) %>%
-  summarise(across(colnames(data[,10:44]), mean)))[-1,]
-
-colnames(treatment_mean) = c("BS No Mean", "DVI No Mean", "DVI Yes Mean")
-
-treatment_sd = t(data %>%
-  group_by(Treatment) %>%
-  summarise(across(colnames(data[,10:44]), sd)))[-1,]
-
-colnames(treatment_sd) = c("BS No SD", "DVI No SD", "DVI Yes SD")
-
-treatment_min = t(data %>%
-  group_by(Treatment) %>%
-  summarise(across(colnames(data[,10:44]), min)))[-1,]
-
-colnames(treatment_min) = c("BS No Min", "DVI No Min", "DVI Yes Min")
-
-treatment_max = t(data %>%
-  group_by(Treatment) %>%
-  summarise(across(colnames(data[,10:44]), max)))[-1,] 
-
-colnames(treatment_max) = c("BS No Max", "DVI No Max", "DVI Yes Max")
-
-summary_df = cbind(treatment_mean, treatment_sd,
-                   treatment_min, treatment_max)
+summary_df = data %>%
+  group_by(Treatment, Response) %>%
+  summarise(mean = mean(value), sd = sd(value),
+            min = min(value), max = max(value), 
+            Grouping = Grouping) %>%
+  unique()
 
 write.csv(summary_df, "../Output/summary_stats.csv", row.names = TRUE)
 ```
 
 ## Plotting
+
 ```{r}
 # Create a function with the response as an input variables for plotting
 summary_plot = function(y) {
@@ -118,7 +93,6 @@ cor(data[,10:53])
 corrplot::corrplot(cor(data[,10:53]), tl.cex = .55, 
                    tl.col = "black")
 ```
-
 
 ## Analysis
 
@@ -167,6 +141,4 @@ emmeans_plots = map(emmeans_list, pwpp)
 anova_list = aov(data$Coagulation.time..minutes. ~ factor(data$Treatment) + factor(data$Milk.Protein))
 ```
 
-When looking at the FDR adjusted p-values, we see that there are two significant coefficients, one for the difference between the mean coagulation time of DVI No and Bulk and one for the mean Leucine of DVI Yes and Bulk. When looking at the contrasts, we also see that there is a significant difference between the mean coagulation time of DVI No and DVI Yes. No other significant differences were found. 
-
-
+When looking at the FDR adjusted p-values, we see that there are two significant coefficients, one for the difference between the mean coagulation time of DVI No and Bulk and one for the mean Leucine of DVI Yes and Bulk. When looking at the contrasts, we also see that there is a significant difference between the mean coagulation time of DVI No and DVI Yes. No other significant differences were found.
