@@ -52,9 +52,12 @@ write.csv(summary_df, "../Output/summary_stats.csv", row.names = FALSE)
 ```{r}
 # Create a function with the response as an input variables for plotting
 summary_plot = function(y) {
-  ggplot(data) + 
+  select_data = data %>%
+    filter(Response == y)
+  
+  ggplot(select_data) + 
   geom_point(aes(x = Treatment, 
-                 y = get(y)),
+                 y = value),
                  alpha = 0.7) +
   ylab(y) +
   xlab("") + 
@@ -62,23 +65,31 @@ summary_plot = function(y) {
 }
 
 # Create plots for all response variables
-response = colnames(data[,10:53])
+response = unique(data$Response)
 plots = map(response, summary_plot)
+names(plots) = data$Grouping[1:42]
 
 # Create overall x label for grid plotting
 x_label <- textGrob("Treatment")
 
 #Create pdf of plot grids
-pdf("cheese_plots.pdf")
-for (i in seq(1, 40, 9)) {
-  j = i + 8
-  if (j %% 44 == 1) {
-    j = 44
-  }
-  # Create grids for each group (3 total groups)
-  plot_grid = cowplot::plot_grid(plotlist = plots[i:j])
-  grid.arrange(arrangeGrob(plot_grid, bottom = x_label))
-}
+pdf("../Output/processData_plots.pdf")
+# Create grids for each group (3 total groups)
+plot_grid = cowplot::plot_grid(plotlist = plots[1:6])
+grid.arrange(arrangeGrob(plot_grid, bottom = x_label))
+dev.off()
+
+#Create pdf of plot grids
+pdf("../Output/biochemicalData_plots.pdf")
+# Create grids for each group (3 total groups)
+plot_grid = cowplot::plot_grid(plotlist = plots[7:23])
+grid.arrange(arrangeGrob(plot_grid, bottom = x_label))
+dev.off()
+
+pdf("../Output/sensoryData_plots.pdf")
+# Create grids for each group (3 total groups)
+plot_grid = cowplot::plot_grid(plotlist = plots[24:42])
+grid.arrange(arrangeGrob(plot_grid, bottom = x_label))
 dev.off()
 
 # PCA plots
