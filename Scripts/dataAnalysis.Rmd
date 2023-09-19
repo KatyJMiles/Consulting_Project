@@ -44,7 +44,7 @@ summary_df = data %>%
             Grouping = Grouping) %>%
   unique()
 
-write.csv(summary_df, "../Output/summary_stats.csv", row.names = TRUE)
+write.csv(summary_df, "../Output/summary_stats.csv", row.names = FALSE)
 ```
 
 ## Plotting
