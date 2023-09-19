@@ -26,4 +26,4 @@ groupings = c(rep("Process Data", 6),
               rep("Sensory Data", 19))
 long_data = cbind(Grouping = rep(groupings, 16), long_data)
 
-write.csv(long_data, "Input/longData.csv")
+write.csv(long_data, "Input/longData.csv", row.names = FALSE)
