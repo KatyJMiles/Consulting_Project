@@ -71,6 +71,9 @@ response = unique(data$Response)
 plots = map(response, summary_plot)
 names(plots) = data$Grouping[1:42]
 
+# Save all plots in pdf (one plot per page)
+all_plots = ggexport(plots, filename = "../Output/allPlots.pdf")
+
 # Process plots
 plot_page1 = ggarrange(plotlist = plots[1:6],
                         nrow = 2, ncol = 3, common.legend = TRUE)
