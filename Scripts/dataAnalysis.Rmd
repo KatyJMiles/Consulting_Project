@@ -16,6 +16,7 @@ library(gridExtra)
 library(ggfortify)
 library(broom.mixed)
 library(knitr)
+library(ggpubr)
 ```
 
 ## Importing Data
@@ -57,7 +58,8 @@ summary_plot = function(y) {
   
   ggplot(select_data) + 
   geom_point(aes(x = Treatment, 
-                 y = value),
+                 y = value,
+                 color = Treatment),
                  alpha = 0.7) +
   ylab(y) +
   xlab("") + 
@@ -69,40 +71,41 @@ response = unique(data$Response)
 plots = map(response, summary_plot)
 names(plots) = data$Grouping[1:42]
 
-# Create overall x label for grid plotting
-x_label <- textGrob("Treatment")
+# Process plots
+plot_page1 = ggarrange(plotlist = plots[1:6],
+                        nrow = 2, ncol = 3, common.legend = TRUE)
 
-#Create pdf of plot grids
-pdf("../Output/processData_plots.pdf")
-# Create grids for each group (3 total groups)
-plot_grid = cowplot::plot_grid(plotlist = plots[1:6])
-grid.arrange(arrangeGrob(plot_grid, bottom = x_label))
-dev.off()
+plot_page1 = annotate_figure(plot_page1,
+                             top = text_grob("Process Data", 
+                                       face = "bold", size = 14))
 
-#Create pdf of plot grids
-pdf("../Output/biochemicalData_plots.pdf")
-# Create grids for each group (3 total groups)
-plot_grid = cowplot::plot_grid(plotlist = plots[7:23])
-grid.arrange(arrangeGrob(plot_grid, bottom = x_label))
-dev.off()
+ggexport(plot_page1, filename = "../Output/processData_plots.pdf")
 
-pdf("../Output/sensoryData_plots.pdf")
-# Create grids for each group (3 total groups)
-plot_grid = cowplot::plot_grid(plotlist = plots[24:42])
-grid.arrange(arrangeGrob(plot_grid, bottom = x_label))
-dev.off()
+
+# Biochemical plots
+plot_page2 = ggarrange(plotlist = plots[7:23],
+                        nrow = 3, ncol = 3, common.legend = TRUE)
+
+ggexport(plot_page2, filename = "../Output/biochemicalData_plots.pdf")
+
+# Sensory plots
+plot_page3 = ggarrange(plotlist = plots[24:42],
+                        nrow = 3, ncol = 3, common.legend = TRUE)
+
+ggexport(plot_page3, filename = "../Output/sensoryData_plots.pdf")
+
 
 # PCA plots
-pca_res <- prcomp(data[,10:53], scale. = TRUE)
+#pca_res <- prcomp(filter(data$Grouping == "Process Data")$value, scale. = TRUE)
 
-autoplot(pca_res, data, colour = "Treatment") + 
-  theme_classic()
+#autoplot(pca_res, data, colour = "Treatment") + 
+#  theme_classic()
 
 # Checking correlation of responses
-cor(data[,10:53])
+#cor(data[,10:53])
 
-corrplot::corrplot(cor(data[,10:53]), tl.cex = .55, 
-                   tl.col = "black")
+#corrplot::corrplot(cor(data[,10:53]), tl.cex = .55, 
+#                   tl.col = "black")
 ```
 
 ## Analysis
@@ -111,18 +114,17 @@ corrplot::corrplot(cor(data[,10:53]), tl.cex = .55,
 # Create a function for fitting a mixed effect model
 # with response variables as input for automation
 fit_model = function(response) {
-  model = lmer(get(response) ~ Treatment + (1|Milk.Protein),
-               data = data)
+  select_data = data %>%
+    filter(Response == response)
+  model = lmer(value ~ Treatment + (1|Milk.Protein),
+               data = select_data)
   return(model)
   
 }
 
-# Create a list of response variables to map to (Initial Cheese pH is first response)
-response_vars = colnames(data[, 10:53])
-
 # Fit models for all response variables
-model_list = map(response_vars, fit_model)
-names(model_list) = response_vars
+model_list = map(response, fit_model)
+names(model_list) = response
 summary_list = map(model_list, tidy)
 
 # Get a list of p-values
@@ -131,25 +133,62 @@ plist = as.data.frame(t(unlist(summary_list))) %>%
   t() %>%
   na.omit()
 
+plist = as.data.frame(cbind(c(rep("Process Data", 18),
+              rep("Biochemical Data", 51),
+              rep("Sensory Data", 57)), plist))
+
+colnames(plist) = c("Group", "pval")
 # Adjust p-values with FDR
-plist_adjusted = p.adjust(sort(plist[,1]), method = "fdr")
+plist_adjusted = c()
+for (group in c("Process Data", 
+                  "Biochemical Data",
+                  "Sensory Data")) {
+  p_group = as.matrix(filter(plist, Group == group))
+  p = p.adjust(sort(p_group[,2]), method = "fdr")
+  plist_adjusted = append(plist_adjusted, p)
+}
 
 # Create a df to compare adjusted and unadjusted pvals
 pval_df = merge(as.data.frame(plist), as.data.frame(plist_adjusted),
            by="row.names") %>%
   mutate("Sig" = ifelse(plist_adjusted <= 0.05, "Yes", "No"))
 
-colnames(pval_df) = c("response", "pval", "pval_adj", "sig")
+colnames(pval_df) = c("response", "Grouping",
+"pval", "pval_adj", "sig")
 
 # Get pairwise comparisons for all models
 emmeans_list = map(model_list, emmeans, ~Treatment)
 pair_list = map(emmeans_list, contrast, "pairwise")
 
+plot_emmeans = function(input) {
+  print(names(input))
+  pwpp(input) + 
+    xlab("") + 
+    ylab("")
+}
 # Plot emmeans output
-emmeans_plots = map(emmeans_list, pwpp)
+emmeans_plots = map(emmeans_list, plot_emmeans)
+
+
+#Create pdf of plot grids
+pdf("../Output/processData_emmeans.pdf")
+# Create grids for each group (3 total groups)
+cowplot::plot_grid(plotlist = emmeans_plots[1:6])
+dev.off()
+
+#Create pdf of plot grids
+pdf("../Output/biochemicalData_emmeans.pdf")
+# Create grids for each group (3 total groups)
+cowplot::plot_grid(plotlist = emmeans_plots[7:23])
+dev.off()
+
+
+# Create grids for each group (3 total groups)
+plot = cowplot::plot_grid(plotlist = emmeans_plots[24:42])
+ggsave("../Output/sensoryData_emmeans.pdf", )
 
 # MANCOVA
-anova_list = aov(data$Coagulation.time..minutes. ~ factor(data$Treatment) + factor(data$Milk.Protein))
+#anova_list = aov(data$Coagulation.time..minutes. ~ #factor(data$Treatment) + factor(data$Milk.Protein))
 ```
 
-When looking at the FDR adjusted p-values, we see that there are two significant coefficients, one for the difference between the mean coagulation time of DVI No and Bulk and one for the mean Leucine of DVI Yes and Bulk. When looking at the contrasts, we also see that there is a significant difference between the mean coagulation time of DVI No and DVI Yes. No other significant differences were found.
+When looking at the FDR adjusted p-values, we see that there are two significant coefficients, one for the difference between the mean coagulation time of DVI No and Bulk and one for the mean Leucine of DVI Yes and Bulk. When looking at the contrasts, we also see that there is a significant difference between the mean coagulation time of DVI No and DVI Yes. No other significant differences were found with the FDR adjustment. 
