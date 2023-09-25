@@ -31,7 +31,8 @@ data = read.csv("../Input/longData.csv")
 ```{r}
 # Create a new treatment column for analysis
 data = data %>% mutate(Treatment = paste0(`Culture.Variable`, " ", 
-                           `Pre.acidification`))
+                           `Pre.acidification`),
+                       Milk.Batch = dense_rank(Milk.Protein))
 
 ```
 
@@ -58,10 +59,10 @@ summary_plot = function(y) {
     filter(Response == y)
   
   ggplot(select_data) + 
-  geom_point(aes(x = Treatment, 
+  geom_jitter(aes(x = Treatment, 
                  y = value,
                  color = Treatment),
-                 alpha = 0.7) +
+                 alpha = 0.7, width = 0.15) +
   ylab(y) +
   xlab("") + 
   theme_classic() 
@@ -128,7 +129,7 @@ ggexport(pca_plots, filename = "../Output/pcaPlots.pdf")
 fit_model = function(response) {
   select_data = data %>%
     filter(Response == response)
-  model = lmer(value ~ Treatment + (1|Milk.Protein),
+  model = lmer(value ~ Treatment + (1|Milk.Batch),
                data = select_data)
   return(model)
   
