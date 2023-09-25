@@ -141,13 +141,14 @@ plist = as.data.frame(cbind(c(rep("Process Data", 18),
               rep("Sensory Data", 57)), plist))
 
 colnames(plist) = c("Group", "pval")
+
 # Adjust p-values with FDR
 plist_adjusted = c()
 for (group in c("Process Data", 
                   "Biochemical Data",
                   "Sensory Data")) {
   p_group = as.matrix(filter(plist, Group == group))
-  p = p.adjust(sort(p_group[,2]), method = "fdr")
+  p = p.adjust(p_group[,2], method = "fdr")
   plist_adjusted = append(plist_adjusted, p)
 }
 
@@ -157,14 +158,15 @@ pval_df = merge(as.data.frame(plist), as.data.frame(plist_adjusted),
   mutate("Sig" = ifelse(plist_adjusted <= 0.05, "Yes", "No"))
 
 colnames(pval_df) = c("response", "Grouping",
-"pval", "pval_adj", "sig")
+"pval_raw", "pval_adj", "sig")
+
+write.csv(pval_df, "../Output/pval_df.csv", row.names = FALSE)
 
 # Get pairwise comparisons for all models
 emmeans_list = map(model_list, emmeans, ~Treatment)
 pair_list = map(emmeans_list, contrast, "pairwise")
 
 plot_emmeans = function(input) {
-  print(names(input))
   pwpp(input) + 
     xlab("") + 
     ylab("")
@@ -189,9 +191,28 @@ dev.off()
 # Create grids for each group (3 total groups)
 plot = cowplot::plot_grid(plotlist = emmeans_plots[24:42])
 ggsave("../Output/sensoryData_emmeans.pdf", )
-
-# MANCOVA
-#anova_list = aov(data$Coagulation.time..minutes. ~ #factor(data$Treatment) + factor(data$Milk.Protein))
 ```
 
 When looking at the FDR adjusted p-values, we see that there are two significant coefficients, one for the difference between the mean coagulation time of DVI No and Bulk and one for the mean Leucine of DVI Yes and Bulk. When looking at the contrasts, we also see that there is a significant difference between the mean coagulation time of DVI No and DVI Yes. No other significant differences were found with the FDR adjustment. 
+
+## Additional Analysis
+```{r}
+
+# MANOVA
+subset_data = filter(data, Grouping == "Biochemical Data")
+wide_data = pivot_wider(subset_data,  names_from = Response)
+dependent_var = as.matrix(wide_data[,12:ncol(wide_data)])
+anova_list = manova(dependent_var ~
+                      factor(wide_data$Treatment) +
+                      factor(wide_data$Milk.Protein))
+sum = summary.aov(anova_list)
+
+p = c()
+for (i in seq(1, length(sum))) {
+  p = append(p, sum[[i]][1:2,5])
+}
+p = na.omit(p)
+p.adjust(p, "fdr")
+
+# Check MANOVA assumptions
+```
