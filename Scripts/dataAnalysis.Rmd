@@ -140,9 +140,10 @@ model_list = map(response, fit_model)
 names(model_list) = response
 summary_list = map(model_list, tidy)
 
-# Get a list of p-values
+# Get a list of p-values (not including intercept term)
 plist = as.data.frame(t(unlist(summary_list))) %>%
   select(matches("p.value")) %>%
+  select(-matches("p.value1")) %>%
   t() %>%
   na.omit()
 
@@ -201,9 +202,14 @@ dev.off()
 # Create grids for each group (3 total groups)
 plot = cowplot::plot_grid(plotlist = emmeans_plots[24:42])
 ggsave("../Output/sensoryData_emmeans.pdf", )
+
+## Checking assumptions
+resid_plots = map(model_list, base::plot)
+
+
 ```
 
-When looking at the FDR adjusted p-values, we see that there are two significant coefficients, one for the difference between the mean coagulation time of DVI No and Bulk and one for the mean Leucine of DVI Yes and Bulk. When looking at the contrasts, we also see that there is a significant difference between the mean coagulation time of DVI No and DVI Yes. No other significant differences were found with the FDR adjustment. 
+When looking at the FDR adjusted p-values, we see that there are no significant coefficients.
 
 ## Additional Analysis
 ```{r}
@@ -211,10 +217,10 @@ When looking at the FDR adjusted p-values, we see that there are two significant
 # MANOVA
 subset_data = filter(data, Grouping == "Process Data")
 wide_data = pivot_wider(subset_data,  names_from = Response)
-dependent_var = as.matrix(wide_data[,12:ncol(wide_data)])
+dependent_var = as.matrix(wide_data[,13:ncol(wide_data)])
 anova_list = manova(dependent_var ~
                       factor(wide_data$Treatment) +
-                      factor(wide_data$Milk.Protein))
+                      factor(wide_data$Milk.Batch))
 sum = summary.aov(anova_list)
 
 p = c()
@@ -222,12 +228,11 @@ for (i in seq(1, length(sum))) {
   p = append(p, sum[[i]][1:2,5])
 }
 
-plist_adjusted = p.adjust(p, "bonferroni")
+plist_adjusted = p.adjust(p, "fdr")
 pval_df = merge(as.data.frame(p), 
                 as.data.frame(plist_adjusted), 
                 by="row.names") %>%
   mutate("Sig" = ifelse(plist_adjusted <= 0.05, "Yes", "No"))
-
 
 
 # Check MANOVA assumptions
