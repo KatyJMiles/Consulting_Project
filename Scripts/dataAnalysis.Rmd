@@ -164,14 +164,14 @@ for (group in c("Process Data",
 }
 
 # Create a df to compare adjusted and unadjusted pvals
-pval_df = merge(as.data.frame(plist), as.data.frame(plist_adjusted),
+pval_df_mixed = merge(as.data.frame(plist), as.data.frame(plist_adjusted),
            by="row.names") %>%
   mutate("Sig" = ifelse(plist_adjusted <= 0.05, "Yes", "No"))
 
-colnames(pval_df) = c("response", "Grouping",
+colnames(pval_df_mixed) = c("response", "Grouping",
 "pval_raw", "pval_adj", "sig")
 
-write.csv(pval_df, "../Output/pval_df.csv", row.names = FALSE)
+write.csv(pval_df_mixed, "../Output/pval_df_mixed.csv", row.names = FALSE)
 
 # Get pairwise comparisons for all models
 emmeans_list = map(model_list, emmeans, ~Treatment)
@@ -205,18 +205,16 @@ ggsave("../Output/sensoryData_emmeans.pdf", )
 
 ## Checking assumptions
 resid_plots = map(model_list, base::plot)
-
-
 ```
 
-When looking at the FDR adjusted p-values, we see that there are no significant coefficients.
+When looking at the FDR adjusted p-values, we see that there are no significant coefficients.Thus, we fail to reject our Null hypothesis and conclude that we do not have enough evidence to prove that there is a difference between starter culture application technology on any of the process, sensory, or biochemical data.
 
 ## Additional Analysis
 ```{r}
-
 # MANOVA
 subset_data = filter(data, Grouping == "Process Data")
 wide_data = pivot_wider(subset_data,  names_from = Response)
+# Get a list of response variables
 dependent_var = as.matrix(wide_data[,13:ncol(wide_data)])
 anova_list = manova(dependent_var ~
                       factor(wide_data$Treatment) +
@@ -227,13 +225,16 @@ p = c()
 for (i in seq(1, length(sum))) {
   p = append(p, sum[[i]][1:2,5])
 }
-
+names(p) = rep(names(sum), each = 2)
 plist_adjusted = p.adjust(p, "fdr")
-pval_df = merge(as.data.frame(p), 
-                as.data.frame(plist_adjusted), 
-                by="row.names") %>%
-  mutate("Sig" = ifelse(plist_adjusted <= 0.05, "Yes", "No"))
 
+pval_df_manova = merge(stack(p), 
+                stack(plist_adjusted), 
+                by="ind") %>%
+  mutate("Sig" = ifelse(values.y <= 0.05, "Yes", "No"))
+colnames(pval_df_manova) = c("response", "pval_raw", "pval_adj", "sig")
+
+write.csv(pval_df_manova, "../Output/pval_df_manova.csv", row.names = FALSE)
 
 # Check MANOVA assumptions
 ```
