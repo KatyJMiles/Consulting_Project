@@ -168,7 +168,7 @@ pval_df_mixed = merge(as.data.frame(plist), as.data.frame(plist_adjusted),
            by="row.names") %>%
   mutate("Sig" = ifelse(plist_adjusted <= 0.05, "Yes", "No"))
 
-colnames(pval_df_mixed) = c("response", "Grouping",
+colnames(pval_df_mixed) = c("response", "grouping",
 "pval_raw", "pval_adj", "sig")
 
 pval_df_mixed = pval_df_mixed %>%
@@ -232,10 +232,10 @@ fit_manova = function(grouping, data) {
 }
 
 manova_list = map(groups, fit_manova, data)
-
+names(manova_list) = groups
 # Create empty df to append pvals to
-pval_df_manova = data.frame(matrix(ncol = 4))
-colnames(pval_df_manova) = c("response", "pval_raw", "pval_adj", "sig")
+pval_df_manova = data.frame(matrix(ncol = 5))
+colnames(pval_df_manova) = c("response", "pval_raw", "pval_adj", "sig", "grouping")
 
 for (i in seq(1, length(manova_list))) {
   sum = manova_list[[i]]
@@ -251,11 +251,12 @@ for (i in seq(1, length(manova_list))) {
                   by="ind") %>%
     mutate("Sig" = ifelse(values.y <= 0.05, "Yes", "No"))
   colnames(pval_df_group) = c("response", "pval_raw", "pval_adj", "sig")
+  pval_df_group = cbind(pval_df_group, grouping = rep(names(manova_list)[i], nrow(pval_df_group)))
   pval_df_manova = rbind(pval_df_manova, pval_df_group)
   
 }
 
-write.csv(pval_df_manova, "../Output/pval_df_manova.csv", row.names = FALSE)
+write.csv(pval_df_manova[-1,], "../Output/pval_df_manova.csv", row.names = FALSE)
 
 # Check MANOVA assumptions
 ```
