@@ -171,6 +171,11 @@ pval_df_mixed = merge(as.data.frame(plist), as.data.frame(plist_adjusted),
 colnames(pval_df_mixed) = c("response", "Grouping",
 "pval_raw", "pval_adj", "sig")
 
+pval_df_mixed = pval_df_mixed %>%
+  mutate(response = stringr::str_remove(response, ".p.value2")) %>%
+  mutate(response = stringr::str_remove(response, ".p.value3")) %>%
+  cbind("Treatment" = rep(c("DVI No", "DVI Yes"), 42))
+
 write.csv(pval_df_mixed, "../Output/pval_df_mixed.csv", row.names = FALSE)
 
 # Get pairwise comparisons for all models
@@ -212,27 +217,43 @@ When looking at the FDR adjusted p-values, we see that there are no significant 
 ## Additional Analysis
 ```{r}
 # MANOVA
-subset_data = filter(data, Grouping == "Process Data")
-wide_data = pivot_wider(subset_data,  names_from = Response)
-# Get a list of response variables
-dependent_var = as.matrix(wide_data[,13:ncol(wide_data)])
-anova_list = manova(dependent_var ~
-                      factor(wide_data$Treatment) +
-                      factor(wide_data$Milk.Batch))
-sum = summary.aov(anova_list)
-
-p = c()
-for (i in seq(1, length(sum))) {
-  p = append(p, sum[[i]][1:2,5])
+fit_manova = function(grouping, data) {
+  subset_data = filter(data, Grouping == grouping)
+  wide_data = pivot_wider(subset_data, names_from = Response)
+  # Get a list of response variables
+  dependent_var = as.matrix(wide_data[,13:ncol(wide_data)])
+  # Fit model
+  anova_list = manova(dependent_var ~
+                        factor(wide_data$Treatment) +
+                        factor(wide_data$Milk.Batch))
+  # Get model summary
+  sum = summary.aov(anova_list)
+  return(sum)
 }
-names(p) = rep(names(sum), each = 2)
-plist_adjusted = p.adjust(p, "fdr")
 
-pval_df_manova = merge(stack(p), 
-                stack(plist_adjusted), 
-                by="ind") %>%
-  mutate("Sig" = ifelse(values.y <= 0.05, "Yes", "No"))
+manova_list = map(groups, fit_manova, data)
+
+# Create empty df to append pvals to
+pval_df_manova = data.frame(matrix(ncol = 4))
 colnames(pval_df_manova) = c("response", "pval_raw", "pval_adj", "sig")
+
+for (i in seq(1, length(manova_list))) {
+  sum = manova_list[[i]]
+  p = c()
+  for (j in seq(1, length(sum))) {
+    p = append(p, sum[[j]][1,5])
+  }
+  names(p) = names(sum)
+  plist_adjusted = p.adjust(p, "fdr")
+  
+  pval_df_group = merge(stack(p), 
+                  stack(plist_adjusted), 
+                  by="ind") %>%
+    mutate("Sig" = ifelse(values.y <= 0.05, "Yes", "No"))
+  colnames(pval_df_group) = c("response", "pval_raw", "pval_adj", "sig")
+  pval_df_manova = rbind(pval_df_manova, pval_df_group)
+  
+}
 
 write.csv(pval_df_manova, "../Output/pval_df_manova.csv", row.names = FALSE)
 
