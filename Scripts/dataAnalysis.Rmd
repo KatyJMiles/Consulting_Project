@@ -91,11 +91,20 @@ ggexport(plot_page1, filename = "../Output/processData_plots.pdf")
 plot_page2 = ggarrange(plotlist = plots[7:23],
                         nrow = 3, ncol = 3, common.legend = TRUE)
 
+plot_page2 = lapply(plot_page2, annotate_figure,
+                             top = text_grob("Biochemical Data", 
+                                       face = "bold", size = 14))
+
+
 ggexport(plot_page2, filename = "../Output/biochemicalData_plots.pdf")
 
 # Sensory plots
 plot_page3 = ggarrange(plotlist = plots[24:42],
                         nrow = 3, ncol = 3, common.legend = TRUE)
+
+plot_page3 = lapply(plot_page3, annotate_figure,
+                             top = text_grob("Sensory Data", 
+                                       face = "bold", size = 14))
 
 ggexport(plot_page3, filename = "../Output/sensoryData_plots.pdf")
 
