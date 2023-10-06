@@ -114,10 +114,12 @@ plot_pca = function(group, df) {
   df_subset = df %>% 
     filter(Grouping == group)
   wide_data = pivot_wider(df_subset,  names_from = Response)
-  dependent_var = as.matrix(wide_data[,12:ncol(wide_data)])
+  dependent_var = as.matrix(wide_data[,13:ncol(wide_data)])
   pca_res = prcomp(dependent_var,
                    scale. = TRUE)
-  autoplot(pca_res, wide_data, colour = "Treatment") + 
+  autoplot(pca_res, wide_data, colour = "Treatment", loadings = TRUE,
+           loadings.label = TRUE,  loadings.color = 'black', 
+           loadings.label.color = 'black') + 
     theme_classic() + 
     ggtitle(group) + 
     theme(plot.title = element_text(hjust = 0.5))
